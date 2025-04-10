@@ -1,0 +1,6 @@
+@TramPlannerRestApi_HostAddress = http://localhost:5197
+
+GET {{TramPlannerRestApi_HostAddress}}/tram/
+Accept: application/json
+
+###

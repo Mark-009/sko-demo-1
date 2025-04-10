@@ -1,0 +1,136 @@
+﻿@page "/"
+@inject HttpClient Http
+
+@using TramPlannerLib.Models
+@using TramPlannerLib.Responses
+@using TramPlannerLib.Services
+
+<PageTitle>Depot</PageTitle>
+
+@if (!string.IsNullOrEmpty(errorStatus))
+{
+    <p style="color:red;">@errorStatus</p>
+}
+
+<h1>Tram simple planner</h1>
+
+<div>Trams in depot:</div>
+<br />
+
+@if (tramsList.Count < 1)
+{
+    <p style="color:red;">..No trams in the depot..</p>
+}
+
+@foreach (var tram in tramsList)
+{
+    <div style="display: flex; align-items: center;">
+        <div style="width: 20px; height: 20px; background-color: @(tram.IsMissionPlanned ? "green" : "red"); margin-right: 10px;"></div>
+        Tram ID: @tram.Id, Mission Planned: @tram.IsMissionPlanned
+    </div>
+}
+<br />
+
+@* disable button to prevent multiple download requests..*@
+<button class="btn btn-primary" @onclick="OnPlanMission" disabled="@(isWaitingForPlanningResult || !string.IsNullOrEmpty(errorStatus))">Plan mission</button>
+<br />
+<br />
+
+@if (isWaitingForPlanningResult)
+{
+    <p style="color:red;">Planning mission, please wait...</p>
+}
+
+@if (isMissionPlanned)
+{
+    <div class="modal" style="display:block;">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Mission planning result</h5>
+                    <button type="button" class="btn-close" @onclick="OnCloseDialog"></button>
+                </div>
+                <div class="modal-body">
+                    <p>@missionPlanResult</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="OnCloseDialog">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+	private Timer? _timer; // to periodically refresh list of trams based on the collection on the server
+
+	// URLs for the API endpoints set statically just for DEV run. For production should be parametrised to be able to switch easily to PROD endpoints..
+    const string UrlPlanMission = "http://localhost:5197/api/Tram/plan-mission";
+    const string UrlGetTrams = "http://localhost:5197/api/Tram/get-trams";
+
+    private string? missionPlanResult = null;
+    private bool isWaitingForPlanningResult = false;
+    private bool isMissionPlanned = false;
+    private string? errorStatus;
+
+    private List<TramModel> tramsList = new List<TramModel>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTrams();
+        // automatically refresh the tram list to see the changes another client could made
+        _timer = new Timer(async _ => await LoadTrams(), null, 0, 2000);
+    }
+
+    private async Task LoadTrams()
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<TramsListResponse>(UrlGetTrams);
+            if (response != null)
+            {
+                tramsList = response.Trams;
+				errorStatus = null; // clear error status if the request is successful                
+            }
+        }
+        catch (Exception ex)
+		{
+            errorStatus = $"Error loading list of trams from the server (potentially no connection to server). Detailed message: '{ex.Message}'";
+			tramsList = new List<TramModel>(); // clear the list if there is an error
+        }
+        finally {
+            // trigger UI update
+            await InvokeAsync(StateHasChanged);
+        }        
+    }
+
+    private async void OnPlanMission()
+    {
+        isWaitingForPlanningResult = true;
+        try 
+        {
+            var response = await Http.GetFromJsonAsync<PlanResponse>(UrlPlanMission);
+            if (response != null)
+            {
+                missionPlanResult = $"Tram id: {response.TramId}. Response message: {response.Message}. Planning result: {response.IsPlanned}";
+            }
+            else
+            {
+                missionPlanResult = "No response from server";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorStatus = $"Error planning mission on the server (potentially no connection to the server). Detailed message: '{ex.Message}'";
+        }        
+
+        await LoadTrams(); // update trams list after planning mission
+        isWaitingForPlanningResult = false;
+        isMissionPlanned = true;        
+    }
+
+    private void OnCloseDialog(MouseEventArgs e)
+    {
+        isMissionPlanned = false;
+    }
+}

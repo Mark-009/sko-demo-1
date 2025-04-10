@@ -1,0 +1,32 @@
+﻿@page "/"
+
+@using TramPlannerRestApi.Services
+
+<PageTitle>Home</PageTitle>
+
+<h1>Tram simple planner</h1>
+
+Trams in depot:
+@foreach (var tramList in tramContainer.Trams)
+{
+    foreach (var tram in tramList)
+    {
+        <p>Tram ID: @tram.Id, Mission Planned: @tram.IsMissionPlanned</p>
+    }
+}
+
+<button class="btn btn-primary" @onclick="OnPlanMission">Plan mission</button> <br />
+
+<p role="status">@someText</p>
+
+@code {
+    private string someText = "Some text";
+    private TramContainer tramContainer = new TramContainer();
+
+    private void OnPlanMission()
+    {
+        // I want to use binary search a tram in the list of trams
+
+        someText = "Mission planned!";
+    }
+}
